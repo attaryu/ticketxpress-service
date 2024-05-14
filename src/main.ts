@@ -1,7 +1,8 @@
-import express from 'express';
 import bodyParser from 'body-parser';
 import cookieParser from 'cookie-parser';
+import express from 'express';
 
+import checkToken from './middleware/checkToken';
 import router from './router';
 
 const app = express();
@@ -9,6 +10,8 @@ const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+app.use(checkToken);
 app.use(router);
 
 export default app;

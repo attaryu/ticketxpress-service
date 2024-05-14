@@ -1,10 +1,6 @@
-import { strict } from 'assert';
 import type { JwtPayload,  } from 'jsonwebtoken';
 
 import { sign, verify, decode } from 'jsonwebtoken';
-import { string } from 'zod';
-
-const TOKEN_SECRET_KEY = process.env.TOKEN_SECRET_KEY as string;
 
 export function createToken(payload: any) {
   return sign(payload, process.env.TOKEN_SECRET_KEY as string, { expiresIn: '1d' });
@@ -12,7 +8,13 @@ export function createToken(payload: any) {
 
 export function verifyToken(token: string) {
   try {
-    return verify(token, process.env.TOKEN_SECRET_KEY as string);
+    const isValid = verify(token, process.env.TOKEN_SECRET_KEY as string);
+
+    if (isValid) {
+      return true
+    }
+
+    return false;
   } catch (error) {
     console.error(error);
     return false;

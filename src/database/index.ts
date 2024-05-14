@@ -7,6 +7,7 @@ export default async function getConnection() {
     password: process.env.PASSWORD,
     database: process.env.DATABASE,
   });
+  console.log('database connected');
 
   return connection;
 }

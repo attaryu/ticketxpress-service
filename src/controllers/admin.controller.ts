@@ -1,18 +1,12 @@
 import type { Request, Response } from 'express';
-
-import { z } from 'zod';
+import type { Admin } from '../models/admin.model';
 
 import { getAdmin, loginAdmin } from '../services/admin.service';
 import { serverError } from '../utils/response';
 import { decodeToken } from '../utils/token';
 
-export async function loginAdminHandler(req: Request, res: Response) {
+export async function loginAdminHandler(req: Request<any, any, Admin>, res: Response) {
   try {
-    z.object({
-      email: z.string(),
-      password: z.string(),
-    }).parse(req.body);
-
     const admin = await loginAdmin(req.body);
 
     if (admin.payload) {

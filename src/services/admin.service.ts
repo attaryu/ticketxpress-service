@@ -1,4 +1,4 @@
-import type Admin from '../models/admin.model';
+import type { Admin, AdminQueryResult } from '../models/admin.model';
 
 import { compare } from 'bcrypt';
 
@@ -7,12 +7,12 @@ import { createToken } from '../utils/token';
 
 export async function loginAdmin(bodyRequest: Admin) {
   const connection = await getConnection();
-  const [result] = await connection.query<Admin[]>('SELECT * FROM admin WHERE email = ?', [bodyRequest.email]);
+  const [result] = await connection.query<AdminQueryResult[]>('SELECT * FROM admin WHERE email = ?', [bodyRequest.email]);
 
   if (!result.length) {
     return {
       code: 404,
-      message: `Admin dengan email ${bodyRequest.email} tidak ditemukan!`,
+      message: `AdminQueryResult dengan email ${bodyRequest.email} tidak ditemukan!`,
     };
   }
 
@@ -46,12 +46,12 @@ export async function loginAdmin(bodyRequest: Admin) {
 
 export async function getAdmin(idAdmin: string) {
   const connection = await getConnection();
-  const [result] = await connection.query<Admin[]>('SELECT * FROM admin WHERE id_admin = ?', [idAdmin]);
+  const [result] = await connection.query<AdminQueryResult[]>('SELECT * FROM admin WHERE id_admin = ?', [idAdmin]);
 
   if (!result.length) {
     return {
       code: 404,
-      message: `Admin dengan id ${idAdmin} tidak ditemukan!`,
+      message: `AdminQueryResult dengan id ${idAdmin} tidak ditemukan!`,
     };
   }
 

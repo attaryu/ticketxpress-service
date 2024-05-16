@@ -4,12 +4,15 @@ import express from 'express';
 
 import checkToken from './middleware/checkToken';
 import router from './router';
+import path from 'path';
 
 const app = express();
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+app.use('/asset', express.static(path.join(__dirname, '..', 'public')));
 
 app.use(checkToken);
 app.use(router);

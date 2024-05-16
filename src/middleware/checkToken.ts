@@ -11,14 +11,12 @@ export default function checkToken(req: Request, res: Response, next: NextFuncti
 
   if (!token) {
     return res
-      .status(401)
+      .status(400)
       .send({
-        code: 401,
+        code: 400,
         message: 'Request token tidak ditemukan, harap login kembali!',
       });
-  }
-
-  if (!verifyToken(token)) {
+  } else if (!verifyToken(token)) {
     return res
       .status(400)
       .send({

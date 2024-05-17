@@ -33,8 +33,6 @@ export async function loginAdmin(bodyRequest: Admin) {
     role: 'admin',
   });
 
-  await connection.query('UPDATE admin SET request_token = ? WHERE id_admin = ?', [newToken, admin.id_admin]);
-
   return {
     code: 200,
     message: 'Login berhasil!',

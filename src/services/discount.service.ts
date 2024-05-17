@@ -18,7 +18,7 @@ export async function getAllDiscount() {
 
 export async function createNewDiscount(requestBody: Discount, filename: string) {
   const connection = await getConnection();
-  const id = filename.match(/^\w+(?=\.jpg)/)![0];
+  const id = RegExp(/^\w+(?=\.jpg)/).exec(filename)![0];
 
   const [result] = await connection.query<ResultSetHeader>('INSERT INTO diskon (id_diskon, judul, persentase, waktu_dimulai, waktu_berakhir) VALUES (?, ?, ?, ?, ?)', [
     id,

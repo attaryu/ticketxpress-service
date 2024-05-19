@@ -3,7 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../utils/token';
 
 export default function checkToken(req: Request, res: Response, next: NextFunction) {
-  if (/\/login/.test(req.path)) {
+  if (/(\/login|\/registration)/.test(req.path)) {
     return next();
   }
 

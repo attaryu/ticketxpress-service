@@ -13,7 +13,7 @@ export async function getAllSchedules() {
   const db = await getConnection();
   const [schedules] = await db.query<ScheduleQuertResult[]>('SELECT jadwal.id_jadwal, kereta.nama as kereta, jadwal.tanggal, jadwal.status, pemberhentian_terakhir FROM jadwal JOIN kereta ON jadwal.kereta = kereta.id_kereta;');
 
-  // * Mengubah response setiap jadwal bagian rute sesuai dengan status jadwal
+  // * Prep: mengubah setiap jadwal bagian rute sesuai dengan status jadwal
 
   const schedulesCompleteForm = [];
 
@@ -99,7 +99,7 @@ export async function createSchedule(scheduleRequest: ScheduleRequest) {
     return checkRoute;
   }
 
-  // * Prepare object jadwal baru
+  // * Prep: object jadwal baru
 
   const newSchedule: Omit<Schedule, 'status'> = {
     id_jadwal: generateId(8),
@@ -111,12 +111,16 @@ export async function createSchedule(scheduleRequest: ScheduleRequest) {
   try {
     await db.beginTransaction();
 
+    // * Exec: insert jadwal
+    
     await db.query('INSERT INTO jadwal (id_jadwal, kereta, pemberhentian_terakhir, tanggal) VALUES (?, ?, ?, ?)', [
       newSchedule.id_jadwal,
       newSchedule.kereta,
       newSchedule.pemberhentian_terakhir,
       newSchedule.tanggal,
     ]);
+    
+    // * Exec: insert route dengan service createRoute
 
     await createRoutes(db, newSchedule, scheduleRequest.rute);
 
@@ -180,14 +184,14 @@ export async function updateSchedule(scheduleRequest: UpdateScheduleRequest) {
   try {
     db.beginTransaction();
 
-    // * Perbarui jadwal
+    // * Exec: update jadwal
 
     await db.query('UPDATE jadwal SET tanggal = ? WHERE id_jadwal = ?', [
       new Date(scheduleRequest.tanggal),
       scheduleRequest.id_jadwal
     ]);
 
-    // * Hapus semua rute dari jadwal tersebut lalu buat lagi
+    // * Exec: hapus semua rute dari jadwal tersebut lalu buat ulang
 
     if (scheduleRequest.rute) {
       await db.query('DELETE FROM rute WHERE jadwal = ?', [scheduleRequest.id_jadwal]);
@@ -260,9 +264,9 @@ export async function deleteSchedule(id: string) {
     rute_terakhir: number,
   }
 
-  const [schedule] = await db.query<QueryResult[]>('SELECT jadwal.pemberhentian_terakhir, MAX(rute.nomor_pemberhentian) AS rute_terakhir FROM rute JOIN jadwal ON rute.jadwal = jadwal.id_jadwal WHERE jadwal = ?', [id]);
-
   // ? Check, apakah jadwal ada?
+
+  const [schedule] = await db.query<QueryResult[]>('SELECT jadwal.pemberhentian_terakhir, MAX(rute.nomor_pemberhentian) AS rute_terakhir FROM rute JOIN jadwal ON rute.jadwal = jadwal.id_jadwal WHERE jadwal = ?', [id]);
 
   if (!schedule.length) {
     return {
@@ -279,6 +283,8 @@ export async function deleteSchedule(id: string) {
       message: `Jadwal ${id} belum berakhir, tidak dapat dihapus`,
     };
   }
+
+  // * Exec: hapus jadwal
 
   await db.query('DELETE FROM jadwal WHERE id_jadwal = ?', [id]);
 

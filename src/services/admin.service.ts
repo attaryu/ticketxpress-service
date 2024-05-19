@@ -7,14 +7,19 @@ import { createToken } from '../utils/token';
 
 export async function loginAdmin(bodyRequest: Admin) {
   const connection = await getConnection();
+
+  // ? Check, apakah admin ada?
+  
   const [result] = await connection.query<AdminQueryResult[]>('SELECT * FROM admin WHERE email = ?', [bodyRequest.email]);
 
   if (!result.length) {
     return {
       code: 404,
-      message: `AdminQueryResult dengan email ${bodyRequest.email} tidak ditemukan!`,
+      message: `Admin dengan email ${bodyRequest.email} tidak ditemukan!`,
     };
   }
+
+  // ? Check, apakah password valid?
 
   const admin = result[0];
   const isPassworValid = await compare(bodyRequest.password, admin.password);
@@ -25,6 +30,8 @@ export async function loginAdmin(bodyRequest: Admin) {
       message: 'Password salah!',
     };
   }
+
+  // * Prep, buat token request
 
   const newToken = createToken({
     id: admin.id_admin,
@@ -44,12 +51,15 @@ export async function loginAdmin(bodyRequest: Admin) {
 
 export async function getAdmin(idAdmin: string) {
   const connection = await getConnection();
+
+  // ? Check, apakah admin ada?
+  
   const [result] = await connection.query<AdminQueryResult[]>('SELECT * FROM admin WHERE id_admin = ?', [idAdmin]);
 
   if (!result.length) {
     return {
       code: 404,
-      message: `AdminQueryResult dengan id ${idAdmin} tidak ditemukan!`,
+      message: `Admin dengan id ${idAdmin} tidak ditemukan!`,
     };
   }
 

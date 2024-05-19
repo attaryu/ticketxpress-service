@@ -7,6 +7,9 @@ import { rm } from 'fs/promises';
 
 export async function getAllDiscount() {
   const connection = await getConnection();
+
+  // * Exec: ambil semua diskon
+  
   const [result] = await connection.query<DiscountQueryResult[]>('SELECT * FROM diskon');
 
   return {
@@ -18,7 +21,12 @@ export async function getAllDiscount() {
 
 export async function createNewDiscount(requestBody: Discount, filename: string) {
   const connection = await getConnection();
+
+  // * Prep: ambil nama file foto untuk dijadikan id diskon
+  
   const id = RegExp(/^\w+(?=\.jpg)/).exec(filename)![0];
+
+  // * Exec: insert diskon
 
   const [result] = await connection.query<ResultSetHeader>('INSERT INTO diskon (id_diskon, judul, persentase, waktu_dimulai, waktu_berakhir) VALUES (?, ?, ?, ?, ?)', [
     id,
@@ -44,6 +52,9 @@ export async function createNewDiscount(requestBody: Discount, filename: string)
 
 export async function getDiscount(id: string) {
   const connection = await getConnection();
+
+  // ? Check, apakah diskon ada?
+  
   const [result] = await connection.query<DiscountQueryResult[]>('SELECT * FROM diskon WHERE id_diskon = ?', [id]);
 
   if (!result.length) {
@@ -64,6 +75,9 @@ export async function getDiscount(id: string) {
 
 export async function updateDiscount(discount: Partial<Discount>) {
   const connection = await getConnection();
+
+  // ? Check, apakah diskon ada?
+  
   const [discountFromDatabase] = await connection.query<DiscountQueryResult[]>('SELECT judul, persentase, waktu_dimulai, waktu_berakhir, aktif FROM diskon WHERE id_diskon = ?', [discount.id_diskon]);
 
   if (!discountFromDatabase.length) {
@@ -73,12 +87,16 @@ export async function updateDiscount(discount: Partial<Discount>) {
     };
   }
 
+  // * Prep: membuat object diskon baru
+
   const updatedDiscount: Discount = {
     ...discountFromDatabase[0],
     ...discount,
     waktu_dimulai: new Date(discount.waktu_dimulai ?? discountFromDatabase[0].waktu_dimulai),
     waktu_berakhir: new Date(discount.waktu_berakhir ?? discountFromDatabase[0].waktu_berakhir),
   };
+
+  // * Exec: insert diskon baru
 
   const [result] = await connection.query<ResultSetHeader>('UPDATE diskon SET judul = ?, persentase = ?, waktu_dimulai = ?, waktu_berakhir = ?, aktif = ? WHERE id_diskon = ?', [
     updatedDiscount.judul,
@@ -105,15 +123,21 @@ export async function updateDiscount(discount: Partial<Discount>) {
 
 export async function deleteDiscount(id: string) {
   const connection = await getConnection();
-  const [result] = await connection.query<ResultSetHeader>('DELETE FROM diskon WHERE id_diskon = ?', [id]);
-  await rm( path.resolve('public', 'image', `${id}.jpg`));
 
+  // * Exec: hapus diskon
+  
+  const [result] = await connection.query<ResultSetHeader>('DELETE FROM diskon WHERE id_diskon = ?', [id]);
+  
   if (!result.affectedRows) {
     return {
       code: 500,
       message: `Hapus diskon ${id} tidak berhasil!`,
     };
   }
+  
+  // * Exec: hapus foto diskon
+
+  await rm(path.resolve('public', 'image', `${id}.jpg`));
 
   return {
     code: 200,

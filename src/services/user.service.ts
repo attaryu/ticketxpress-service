@@ -16,6 +16,9 @@ export async function getAllUsers() {
 
 export async function changeUserStatus(id: string) {
   const db = await getConnection();
+
+  // ? Check: apakah user ada?
+  
   const [queryResult] = await db.query<UserQueryResult[]>('SELECT aktif FROM pengguna WHERE id_pengguna = ?', [id]);
 
   if (!queryResult.length) {
@@ -26,6 +29,9 @@ export async function changeUserStatus(id: string) {
   }
 
   const user: Pick<User, 'aktif'> = queryResult[0];
+
+  // * Exec: ubah status user
+  
   await db.query<ResultSetHeader>('UPDATE pengguna SET aktif = ? WHERE id_pengguna = ?', [!user.aktif, id]);
 
   return {

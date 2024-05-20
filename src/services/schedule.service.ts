@@ -1,5 +1,5 @@
 import type { RowDataPacket } from 'mysql2/promise';
-import type { Route } from '../models/route.model';
+import type { Route, RouteQueryResult } from '../models/route.model';
 import type { Schedule, ScheduleQuertResult } from '../models/schedule.model';
 import type { StationQueryResult } from '../models/station.model';
 import type { TrainQueryResult } from '../models/train.model';
@@ -196,6 +196,11 @@ export async function updateSchedule(scheduleRequest: UpdateScheduleRequest) {
     if (scheduleRequest.rute) {
       await db.query('DELETE FROM rute WHERE jadwal = ?', [scheduleRequest.id_jadwal]);
       await createRoutes(db, scheduleRequest, scheduleRequest.rute);
+    } else {
+      const [routes] = await db.query<RouteQueryResult[]>('SELECT * FROM rute WHERE jadwal = ? ORDER BY nomor_pemberhentian', [scheduleRequest.id_jadwal]);
+
+      await db.query('DELETE FROM rute WHERE jadwal = ?', [scheduleRequest.id_jadwal]);
+      await createRoutes(db, scheduleRequest, routes);
     }
 
     db.commit();

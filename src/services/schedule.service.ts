@@ -1,5 +1,5 @@
 import type { RowDataPacket } from 'mysql2/promise';
-import type { Route } from '../models/route.model';
+import type { Route, RouteQueryResult } from '../models/route.model';
 import type { Schedule, ScheduleQuertResult } from '../models/schedule.model';
 import type { StationQueryResult } from '../models/station.model';
 import type { TrainQueryResult } from '../models/train.model';
@@ -104,7 +104,7 @@ export async function createSchedule(scheduleRequest: ScheduleRequest) {
   const newSchedule: Omit<Schedule, 'status'> = {
     id_jadwal: generateId(8),
     kereta: scheduleRequest.kereta,
-    tanggal: new Date(scheduleRequest.tanggal),
+    tanggal: new Date(new Date(scheduleRequest.tanggal).setMilliseconds(0)),
     pemberhentian_terakhir: 1,
   };
 
@@ -151,24 +151,30 @@ export async function updateSchedule(scheduleRequest: UpdateScheduleRequest) {
 
   // ? Check, apakah jadwal ada?
 
-  const [test] = await db.query<Pick<ScheduleQuertResult, 'constructor' | 'tanggal' | 'kereta'>[]>('SELECT id_jadwal FROM jadwal WHERE id_jadwal = ?', [scheduleRequest.id_jadwal]);
+  const [schedule] = await db.query<Pick<ScheduleQuertResult, 'constructor' | 'tanggal' | 'kereta'>[]>('SELECT id_jadwal, tanggal FROM jadwal WHERE id_jadwal = ?', [scheduleRequest.id_jadwal]);
 
-  if (!test.length) {
+  if (!schedule.length) {
     return {
       code: 404,
       message: `Jadwal ${scheduleRequest.id_jadwal} tidak ditemukan`,
     };
   }
 
-  // ? Check, apakah hari jadwal sama dengan hari jadwal lain dari kereta yang sama?
+  // * Prep: hilangkan presisi miliseconds pada tanggal di reqeust
 
-  const [test2] = await db.query<RowDataPacket[]>('SELECT id_jadwal FROM jadwal WHERE kereta = ? AND DATE(tanggal) = DATE(?)', [scheduleRequest.kereta, scheduleRequest.tanggal]);
+  const dateFromRequest = new Date(scheduleRequest.tanggal).setMilliseconds(0)
 
-  if (test2.length) {
-    return {
-      code: 400,
-      message: `Jadwal ${scheduleRequest.id_jadwal} untuk kereta ${scheduleRequest.kereta} bertabrakan dengan jadwal lain`,
-    };
+  // ? Check, jika tanggal request dan tanggal dari jadwal database tidak sama, maka cek apakah hari jadwal sama dengan hari jadwal lain dari kereta yang sama?
+
+  if (schedule[0].tanggal.getTime() !== new Date(dateFromRequest).getTime()) {
+    const [test2] = await db.query<RowDataPacket[]>('SELECT id_jadwal FROM jadwal WHERE kereta = ? AND DATE(tanggal) = DATE(?)', [scheduleRequest.kereta, scheduleRequest.tanggal]);
+
+    if (test2.length) {
+      return {
+        code: 400,
+        message: `Jadwal ${scheduleRequest.id_jadwal} untuk kereta ${scheduleRequest.kereta} bertabrakan dengan jadwal lain`,
+      };
+    }
   }
 
   // ? Check, apakah rute yang baru saling terhubung?
@@ -187,7 +193,7 @@ export async function updateSchedule(scheduleRequest: UpdateScheduleRequest) {
     // * Exec: update jadwal
 
     await db.query('UPDATE jadwal SET tanggal = ? WHERE id_jadwal = ?', [
-      new Date(scheduleRequest.tanggal),
+      new Date(dateFromRequest),
       scheduleRequest.id_jadwal
     ]);
 
@@ -196,6 +202,11 @@ export async function updateSchedule(scheduleRequest: UpdateScheduleRequest) {
     if (scheduleRequest.rute) {
       await db.query('DELETE FROM rute WHERE jadwal = ?', [scheduleRequest.id_jadwal]);
       await createRoutes(db, scheduleRequest, scheduleRequest.rute);
+    } else {
+      const [routes] = await db.query<RouteQueryResult[]>('SELECT * FROM rute WHERE jadwal = ? ORDER BY nomor_pemberhentian', [scheduleRequest.id_jadwal]);
+
+      await db.query('DELETE FROM rute WHERE jadwal = ?', [scheduleRequest.id_jadwal]);
+      await createRoutes(db, scheduleRequest, routes);
     }
 
     db.commit();

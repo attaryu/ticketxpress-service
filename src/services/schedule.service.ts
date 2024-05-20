@@ -112,14 +112,14 @@ export async function createSchedule(scheduleRequest: ScheduleRequest) {
     await db.beginTransaction();
 
     // * Exec: insert jadwal
-    
+
     await db.query('INSERT INTO jadwal (id_jadwal, kereta, pemberhentian_terakhir, tanggal) VALUES (?, ?, ?, ?)', [
       newSchedule.id_jadwal,
       newSchedule.kereta,
       newSchedule.pemberhentian_terakhir,
       newSchedule.tanggal,
     ]);
-    
+
     // * Exec: insert route dengan service createRoute
 
     await createRoutes(db, newSchedule, scheduleRequest.rute);
@@ -292,4 +292,75 @@ export async function deleteSchedule(id: string) {
     code: 200,
     message: `Jadwal ${id} berhasil dihapus`,
   };
+}
+
+type GetScheduleRouteBasedQueryURL = {
+  departure: string,
+  destination: string,
+  date: string,
+};
+
+export async function getSchedulesRouteBased(query: GetScheduleRouteBasedQueryURL) {
+  // TODO: ambil jadwal berdasarkan rute yang dicari user
+
+  const db = await getConnection();
+
+  // * Exec: ambil jadwal berdasarkan tanggal keberangkatan user, pastikan jadwal memiliki tiket yang tersedia
+
+  type ScheduleResult = {
+    id_jadwal: string,
+    kereta: string,
+    harga_tiket: number,
+  } & RowDataPacket;
+
+  const [schedules] = await db.query<ScheduleResult[]>(`
+    SELECT DISTINCT jadwal.id_jadwal,
+      kereta.nama AS kereta,
+      tiket.harga AS harga_tiket
+    FROM jadwal
+      JOIN tiket ON jadwal.id_jadwal = tiket.jadwal
+      JOIN stok_tiket ON tiket.id_tiket = stok_tiket.tiket
+      JOIN kereta ON jadwal.kereta = kereta.id_kereta
+    WHERE DATE(tanggal) = DATE(?)
+      AND stok_tiket.dipesan = FALSE;
+  `, [new Date(query.date)]);
+
+  // * Prep: siapkan array of object baru untuk menampung jadwal dan rute yang sesuai dengan permintaan user
+
+  const resultSchedules = [];
+
+  // * Exec: looping setiap jadwal
+
+  for (const schedule of schedules) {
+    // * Exec: ambil rute berdasarkan id jadwal dan rute yang diminta user dan urutkan berdasarkan nomor
+
+    type RoutesQuery = {
+        jadwal: string,
+        nomor_pemberhentian: number,
+        waktu_kedatangan: Date,
+        id_stasiun: string,
+        stasiun: string,
+    } & RowDataPacket;
+
+    const [routes] = await db.query<RoutesQuery[]>(`
+      SELECT jadwal,
+        nomor_pemberhentian,
+        waktu_kedatangan,
+        stasiun.id_stasiun,
+        stasiun.nama AS stasiun
+      FROM rute
+        JOIN stasiun ON rute.stasiun = stasiun.id_stasiun
+      WHERE jadwal = ?
+        AND (stasiun = ? OR stasiun = ?)
+      ORDER BY nomor_pemberhentian;
+    `, [schedule.id_jadwal, query.departure, query.destination]);
+
+    // ? Check: apakah rute lebih dari 1?
+
+    if (routes.le)
+    
+    // ? Check: apakah stasiun rute pertama adalah stasiun keberangkatan dari user?
+    // ? Check: apakah stasiun rute kedua adalah stasiun tujuan dari user?
+  }
+
 }

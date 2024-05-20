@@ -112,14 +112,14 @@ export async function createSchedule(scheduleRequest: ScheduleRequest) {
     await db.beginTransaction();
 
     // * Exec: insert jadwal
-    
+
     await db.query('INSERT INTO jadwal (id_jadwal, kereta, pemberhentian_terakhir, tanggal) VALUES (?, ?, ?, ?)', [
       newSchedule.id_jadwal,
       newSchedule.kereta,
       newSchedule.pemberhentian_terakhir,
       newSchedule.tanggal,
     ]);
-    
+
     // * Exec: insert route dengan service createRoute
 
     await createRoutes(db, newSchedule, scheduleRequest.rute);
@@ -291,5 +291,99 @@ export async function deleteSchedule(id: string) {
   return {
     code: 200,
     message: `Jadwal ${id} berhasil dihapus`,
+  };
+}
+
+export type GetScheduleRouteBasedQueryURL = {
+  departure: string,
+  destination: string,
+  date: string,
+};
+
+export async function getSchedulesRouteBased(query: GetScheduleRouteBasedQueryURL) {
+  // TODO: ambil jadwal berdasarkan rute yang dicari user
+
+  const db = await getConnection();
+
+  // * Exec: ambil jadwal berdasarkan tanggal keberangkatan user, pastikan jadwal memiliki tiket yang tersedia
+
+  type ScheduleQuery = {
+    id_jadwal: string,
+    kereta: string,
+    harga_tiket: number,
+  } & RowDataPacket;
+
+  const [schedules] = await db.query<ScheduleQuery[]>(`
+    SELECT DISTINCT jadwal.id_jadwal,
+      kereta.nama AS kereta,
+      tiket.harga AS harga_tiket
+    FROM jadwal
+      JOIN tiket ON jadwal.id_jadwal = tiket.jadwal
+      JOIN stok_tiket ON tiket.id_tiket = stok_tiket.tiket
+      JOIN kereta ON jadwal.kereta = kereta.id_kereta
+    WHERE DATE(tanggal) = DATE(?)
+      AND stok_tiket.dipesan = FALSE;
+  `, [new Date(query.date).toISOString()]);
+
+  // * Prep: siapkan array of object baru untuk menampung jadwal dan rute yang sesuai dengan permintaan user
+
+  type RoutesQuery = {
+    id_jadwal: string,
+    nomor_pemberhentian: number,
+    waktu_kedatangan: Date,
+    id_stasiun: string,
+    stasiun: string,
+  } & RowDataPacket;
+
+  const formatedSchedules: ({
+    rute: Pick<RoutesQuery, 'id_jadwal' | 'waktu_kedatangan' | 'stasiun'>[],
+  } & ScheduleQuery)[] = [];
+
+  // * Exec: looping setiap jadwal
+
+  for (const schedule of schedules) {
+    // * Exec: ambil rute berdasarkan id jadwal dan rute yang diminta user dan urutkan berdasarkan nomor
+
+    const [routes] = await db.query<RoutesQuery[]>(`
+      SELECT waktu_kedatangan,
+        stasiun.id_stasiun,
+        stasiun.nama AS stasiun
+      FROM rute
+        JOIN stasiun ON rute.stasiun = stasiun.id_stasiun
+      WHERE jadwal = ?
+        AND (stasiun = ? OR stasiun = ?)
+      ORDER BY nomor_pemberhentian;
+    `, [schedule.id_jadwal, query.departure, query.destination]);
+
+    // ? Check: apakah rute lebih kecil dari 2?
+
+    if (routes.length < 2) {
+      continue;
+    }
+
+    // ? Check: apakah stasiun rute pertama tidak sama dengan stasiun keberangkatan dari user?
+
+    if (routes[0].id_stasiun !== query.departure) {
+      continue;
+    }
+
+    // ? Check: apakah stasiun rute kedua tidak sama dengan stasiun tujuan dari user?
+
+    if (routes[1].id_stasiun !== query.destination) {
+      continue;
+    }
+
+    // * Exec: melakukan komposisi jadwal dan rute lalu push dalam array diluar looping tadi
+
+    formatedSchedules.push({
+      ...schedule,
+      rute: routes,
+    });
+  }
+
+  return {
+    code: 200,
+    message: 'Sukses',
+    payload: formatedSchedules,
   };
 }

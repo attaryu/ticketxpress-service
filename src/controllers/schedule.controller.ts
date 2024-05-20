@@ -5,6 +5,7 @@ import {
   createSchedule,
   deleteSchedule,
   getAllSchedules,
+  getSchedulesRouteBased,
   updateSchedule,
 } from '../services/schedule.service';
 import { serverError } from '../utils/response';
@@ -75,6 +76,22 @@ export async function changeStatusScheduleHandler(req: Request<{ scheduleId: str
 export async function deleteScheduleHandler(req: Request<{ scheduleId: string }>, res: Response) {
   try {
     const newSchedule = await deleteSchedule(req.params.scheduleId);
+
+    return res
+      .status(newSchedule.code)
+      .send(newSchedule);
+  } catch (error) {
+    console.error(error);
+
+    return res
+      .status(serverError.code)
+      .send(serverError);
+  }
+}
+
+export async function getSchedulesRouteBasedHandler(req: Request, res: Response) {
+  try {
+    const newSchedule = await getSchedulesRouteBased(req.query as any);
 
     return res
       .status(newSchedule.code)

@@ -5,10 +5,13 @@ import {
   createScheduleHandler,
   deleteScheduleHandler,
   getAllSchedulesHandler,
+  getSchedulesRouteBasedHandler,
   updateScheduleHandler,
 } from '../controllers/schedule.controller';
 
 const scheduleRoutes = Router();
+
+// * Admin routes
 
 scheduleRoutes.route('/admin/schedule')
   .get(getAllSchedulesHandler)
@@ -19,5 +22,9 @@ scheduleRoutes.route('/admin/schedule/:scheduleId')
   .delete(deleteScheduleHandler);
 
 scheduleRoutes.patch('/admin/schedule/:scheduleId/status', changeStatusScheduleHandler);
+
+// * User routes
+
+scheduleRoutes.get('/schedule', getSchedulesRouteBasedHandler);
 
 export default scheduleRoutes;

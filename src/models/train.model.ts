@@ -6,8 +6,4 @@ export interface Train {
   aktif: boolean,
 }
 
-export interface TrainQueryResult extends RowDataPacket {
-  id_kereta: string,
-  nama: string,
-  aktif: boolean,
-}
+export interface TrainQueryResult extends Train, RowDataPacket {}

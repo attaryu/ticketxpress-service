@@ -69,7 +69,7 @@ export async function getDiscount(id: string) {
   return {
     code: 200,
     message: 'Sukses!',
-    package: discount,
+    payload: discount,
   };
 }
 

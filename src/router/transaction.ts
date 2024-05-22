@@ -6,12 +6,13 @@ import {
   getAllUserTransactionsHandler,
   getTransactionHandler,
 } from '../controllers/transaction.controller';
+import checkAdmin from '../middleware/checkAdmin';
 
 const transactionRoutes = Router();
 
 // * admin routes
 
-transactionRoutes.get('/admin/transaction', getAllTransactionsHandler);
+transactionRoutes.get('/admin/transaction', checkAdmin, getAllTransactionsHandler);
 
 // * user routes
 

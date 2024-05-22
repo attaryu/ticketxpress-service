@@ -7,13 +7,14 @@ import {
   loginUserHandler,
   registrationUserHandler,
 } from '../controllers/user.controller';
+import checkAdmin from '../middleware/checkAdmin';
 
 const userRoutes = Router();
 
 userRoutes
-  .get('/admin/user', getAllUsersHandler)
-  .put('/admin/user/:userId/status', changeUserStatusHandler)
-  .delete('/admin/user/:userId', deleteUserHandler);
+  .get('/admin/user', checkAdmin, getAllUsersHandler)
+  .put('/admin/user/:userId/status', checkAdmin, changeUserStatusHandler)
+  .delete('/admin/user/:userId', checkAdmin, deleteUserHandler);
 
 userRoutes.post('/user/registration', registrationUserHandler);
 userRoutes.post('/user/login', loginUserHandler);

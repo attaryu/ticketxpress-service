@@ -16,7 +16,6 @@ app.use(cookieParser());
 app.use('/asset', express.static(path.join(__dirname, '..', 'public')));
 
 app.use(checkToken);
-app.use(checkAdminRoute);
 app.use(router);
 
 export default app;

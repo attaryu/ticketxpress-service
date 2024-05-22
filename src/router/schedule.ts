@@ -8,20 +8,21 @@ import {
   getSchedulesRouteBasedHandler,
   updateScheduleHandler,
 } from '../controllers/schedule.controller';
+import checkAdmin from '../middleware/checkAdmin';
 
 const scheduleRoutes = Router();
 
 // * Admin routes
 
 scheduleRoutes.route('/admin/schedule')
-  .get(getAllSchedulesHandler)
-  .post(createScheduleHandler)
+  .get(checkAdmin, getAllSchedulesHandler)
+  .post(checkAdmin, createScheduleHandler)
 
 scheduleRoutes.route('/admin/schedule/:scheduleId')
-  .put(updateScheduleHandler)
-  .delete(deleteScheduleHandler);
+  .put(checkAdmin, updateScheduleHandler)
+  .delete(checkAdmin, deleteScheduleHandler);
 
-scheduleRoutes.patch('/admin/schedule/:scheduleId/status', changeStatusScheduleHandler);
+scheduleRoutes.patch('/admin/schedule/:scheduleId/status', checkAdmin, changeStatusScheduleHandler);
 
 // * User routes
 

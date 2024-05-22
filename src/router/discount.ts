@@ -8,19 +8,20 @@ import {
   updateDiscountHandler,
 } from '../controllers/discount.controller';
 import uploadImage from '../storage';
+import checkAdmin from '../middleware/checkAdmin';
 
 const discountRoutes = Router();
 const upload = uploadImage.single('image')
 
 // * admin route
 discountRoutes.route('/admin/discount')
-  .get(getAllDiscountHandler)
-  .post(upload, createNewDiscountHandler);
+  .get(checkAdmin, getAllDiscountHandler)
+  .post([checkAdmin, upload], createNewDiscountHandler);
 
 discountRoutes.route('/admin/discount/:discountId')
-  .get(getDiscountHandler)
-  .put(upload, updateDiscountHandler)
-  .delete(deleteDiscountHandler);
+  .get(checkAdmin, getDiscountHandler)
+  .put([checkAdmin, upload], updateDiscountHandler)
+  .delete(checkAdmin, deleteDiscountHandler);
 
 // discountRoutes.put('/admin/discount/:discountId/switch-status');
 

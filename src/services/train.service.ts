@@ -4,7 +4,7 @@ import getConnection from '../database';
 
 export async function getTrain(trainId: string) {
   const db = await getConnection();
-  const [train] = await db.query<TrainQueryResult[]>('SELECT nama FROM kereta WHERE id_kereta = ?', [trainId]);
+  const [train] = await db.query<TrainQueryResult[]>('SELECT * FROM kereta WHERE id_kereta = ?', [trainId]);
 
   if (!train.length) {
     return {

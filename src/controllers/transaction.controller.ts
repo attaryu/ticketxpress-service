@@ -1,8 +1,24 @@
 import type { Request, Response } from 'express';
 
-import { createTransaction, getAllUserTransactions, getTransaction } from '../services/transaction.service';
+import { createTransaction, getAllTransactions, getAllUserTransactions, getTransaction } from '../services/transaction.service';
 import { serverError } from '../utils/response';
 import { decodeToken } from '../utils/token';
+
+export async function getAllTransactionsHandler(_req: Request, res: Response) {
+  try {
+    const transaction = await getAllTransactions();
+
+    return res
+      .status(transaction.code)
+      .send(transaction);
+  } catch (error) {
+    console.error(error);
+
+    return res
+      .status(serverError.code)
+      .send(serverError);
+  }
+}
 
 export async function getAllUserTransactionsHandler(req: Request, res: Response) {
   try {

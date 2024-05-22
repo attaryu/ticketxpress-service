@@ -5,6 +5,7 @@ import type { Transaction, TransactionQueryResult } from '../models/transaction.
 import type { PassengerQueryResult } from '../models/passenger.model';
 
 import { randomUUID } from 'crypto';
+
 import getConnection from '../database';
 import { getDiscount } from '../services/discount.service';
 import { serverError } from '../utils/response';
@@ -14,6 +15,43 @@ import { getTrain } from './train.service';
 type TransactionRequest = {
   penumpang: Array<{ nama: string, jenis_identitas: 'ktp' | 'passpor', identitas: string }>,
 } & Omit<Transaction, 'id_transaksi' | ''>;
+
+export async function getAllTransactions() {
+  const db = await getConnection();
+
+  const [transactions] = await db.query<TransactionQueryResult[]>(`
+    SELECT transaksi.*,
+      jadwal.kereta
+    FROM transaksi
+      JOIN jadwal ON transaksi.jadwal = jadwal.id_jadwal
+  `);
+
+  const formattedTransactions: Array<(Transaction & { kereta: string })> = [];
+
+  // * Exec: looping daftar transaksi
+
+  for (const transaction of transactions) {
+    console.log('transaction:', transaction);
+    // * Exec: ambil data kereta dan stasiun untuk masing masing transaksi
+
+    const departureStation = await getStation(transaction.stasiun_keberangkatan);
+    const destinationStation = await getStation(transaction.stasiun_tujuan);
+    const train = await getTrain(transaction.kereta);
+
+    formattedTransactions.push({
+      ...transaction,
+      stasiun_keberangkatan: departureStation.payload!.nama,
+      stasiun_tujuan: destinationStation.payload!.nama,
+      kereta: train.payload!.nama,
+    });
+  }
+
+  return {
+    code: 200,
+    message: 'Sukses',
+    payload: formattedTransactions,
+  };
+}
 
 export async function createTransaction(transactionRequest: TransactionRequest) {
   const db = await getConnection();
@@ -233,7 +271,6 @@ export async function getAllUserTransactions(userId: string) {
     message: 'Sukses',
     payload: formattedTransactions,
   };
-
 }
 
 export async function getTransaction(transactionId: string, userId: string) {
@@ -247,7 +284,6 @@ export async function getTransaction(transactionId: string, userId: string) {
     FROM transaksi
       JOIN jadwal ON transaksi.jadwal = jadwal.id_jadwal
     WHERE id_transaksi = ?
-    AND pengguna = ?
   `, [transactionId, userId]);
 
   // ? Check: apakah transaksi ditemukan?

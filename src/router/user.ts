@@ -9,6 +9,7 @@ import {
   logoutUserHandler,
   registrationUserHandler,
 } from '../controllers/user.controller';
+import checkAdmin from '../middleware/checkAdmin';
 
 import checkAdmin from '../middleware/checkAdmin';
 import checkToken from '../middleware/checkToken';

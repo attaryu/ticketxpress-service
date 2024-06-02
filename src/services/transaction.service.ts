@@ -21,9 +21,11 @@ export async function getAllTransactions() {
 
   const [transactions] = await db.query<TransactionQueryResult[]>(`
     SELECT transaksi.*,
-      jadwal.kereta
+      jadwal.kereta,
+      pengguna.nama_lengkap
     FROM transaksi
       JOIN jadwal ON transaksi.jadwal = jadwal.id_jadwal
+      JOIN pengguna ON transaksi.pengguna = pengguna.id_pengguna
   `);
 
   const formattedTransactions: Array<(Transaction & { kereta: string })> = [];
@@ -31,7 +33,6 @@ export async function getAllTransactions() {
   // * Exec: looping daftar transaksi
 
   for (const transaction of transactions) {
-    console.log('transaction:', transaction);
     // * Exec: ambil data kereta dan stasiun untuk masing masing transaksi
 
     const departureStation = await getStation(transaction.stasiun_keberangkatan);
@@ -210,6 +211,8 @@ export async function createTransaction(transactionRequest: TransactionRequest) 
         passenger.jenis_identitas,
         passenger.identitas,
       ]);
+
+      await db.query('UPDATE stok_tiket SET dipesan = TRUE WHERE id_stok_tiket = ?', [ticket]);
     }
 
     await db.commit();

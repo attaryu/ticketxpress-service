@@ -164,6 +164,7 @@ export async function loginUser(loginRequest: Pick<RegistrationRequest, 'email' 
     SELECT
       id_pengguna,
       nama_lengkap,
+      nama_panggilan,
       password,
       email
     FROM pengguna WHERE email = ?
@@ -191,7 +192,7 @@ export async function loginUser(loginRequest: Pick<RegistrationRequest, 'email' 
 
   const token = createToken({
     id: user[0].id_pengguna,
-    nama: user[0].nama_lengkap,
+    nama: user[0].nama_panggilan,
     email: user[0].email,
     role: 'user',
   });
@@ -201,4 +202,21 @@ export async function loginUser(loginRequest: Pick<RegistrationRequest, 'email' 
     message: 'Sukses',
     payload: { token },
   };
+}
+
+export async function getLoggedUser(id: string) {
+  const db = await getConnection();
+  const [user] = await db.query<UserQueryResult[]>(`
+    SELECT id_pengguna,
+      nama_lengkap,
+      jenis_identitas,
+      identitas
+    FROM pengguna WHERE id_pengguna = ?
+  `, [id]);
+
+  return {
+    code: 200,
+    message: 'Sukses!',
+    payload: user[0],
+  }
 }

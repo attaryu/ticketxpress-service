@@ -4,10 +4,12 @@ import {
   changeUserStatus,
   deleteUser,
   getAllUsers,
+  getLoggedUser,
   loginUser,
   registrationUser,
 } from '../services/user.service';
 import { serverError } from '../utils/response';
+import { decodeToken } from '../utils/token';
 
 export async function getAllUsersHandler(req: Request, res: Response) {
   try {
@@ -96,5 +98,37 @@ export async function loginUserHandler(req: Request, res: Response) {
       .status(serverError.code)
       .send(serverError);
   }
+}
+
+export async function getLoggedUserHandler(req: Request, res: Response) {
+  try {
+    const decodedToken = decodeToken<{ id: string }>(req.cookies.request_token);
+    const result = await getLoggedUser(decodedToken.id);
+
+    return res
+      .status(result.code)
+      .send(result);
+  } catch (error) {
+    console.error(error);
+
+    return res
+      .status(serverError.code)
+      .send(serverError);
+  }
+}
+
+export async function logoutUserHandler(req: Request, res: Response) {
+  res.cookie('request_token', '', {
+    expires: new Date(Date.now() - 1),
+    httpOnly: true,
+    sameSite: 'none',
+  });
+
+  return res
+    .status(200)
+    .send({
+      code: 200,
+      message: 'Sukses',
+    });
 }
 

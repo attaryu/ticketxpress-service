@@ -14,7 +14,7 @@ export async function loginAdminHandler(req: Request<any, any, Admin>, res: Resp
         expires: new Date(Date.now() + 1000 * 60 * 60 * 24),
         httpOnly: true,
         secure: true,
-        sameSite: 'none',
+	sameSite: 'none'
       });
     }
 
@@ -30,16 +30,6 @@ export async function loginAdminHandler(req: Request<any, any, Admin>, res: Resp
 export async function getAdminHandler(req: Request, res: Response) {
   try {
     const decodedToken = decodeToken<{ id: string }>(req.cookies.request_token);
-
-    if (!decodedToken) {
-      return res
-        .status(401)
-        .send({
-          code: 401,
-          message: 'Request token tidak ditemukan',
-        });
-    }
-
     const admin = await getAdmin(decodedToken.id);
 
     return res
@@ -49,4 +39,19 @@ export async function getAdminHandler(req: Request, res: Response) {
     console.error(error);
     return res.send(serverError);
   }
+}
+
+export async function logoutHandler(req: Request, res: Response) {
+  res.cookie('request_token', '', {
+    expires: new Date(Date.now() - 1),
+    httpOnly: true,
+    sameSite: 'none',
+  });
+
+  return res
+    .status(200)
+    .send({
+      code: 200,
+      message: 'Sukses',
+    });
 }

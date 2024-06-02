@@ -5,6 +5,8 @@ import {
   createScheduleHandler,
   deleteScheduleHandler,
   getAllSchedulesHandler,
+  getScheduleHandler,
+  getSchedulesIdHandler,
   getSchedulesRouteBasedHandler,
   updateScheduleHandler,
 } from '../controllers/schedule.controller';
@@ -13,6 +15,8 @@ import checkAdmin from '../middleware/checkAdmin';
 const scheduleRoutes = Router();
 
 // * Admin routes
+
+scheduleRoutes.get('/admin/schedule/id', getSchedulesIdHandler);
 
 scheduleRoutes.route('/admin/schedule')
   .get(checkAdmin, getAllSchedulesHandler)
@@ -27,5 +31,6 @@ scheduleRoutes.patch('/admin/schedule/:scheduleId/status', checkAdmin, changeSta
 // * User routes
 
 scheduleRoutes.get('/schedule', getSchedulesRouteBasedHandler);
+scheduleRoutes.get('/schedule/:scheduleId', getScheduleHandler);
 
 export default scheduleRoutes;

@@ -5,6 +5,8 @@ import {
   createSchedule,
   deleteSchedule,
   getAllSchedules,
+  getSchedule,
+  getSchedulesId,
   getSchedulesRouteBased,
   updateSchedule,
 } from '../services/schedule.service';
@@ -17,6 +19,21 @@ export async function getAllSchedulesHandler(_req: Request, res: Response) {
     return res
       .status(newSchedule.code)
       .send(newSchedule);
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(serverError.code)
+      .send(serverError);
+  }
+}
+
+export async function getSchedulesIdHandler(req: Request, res: Response) {
+  try {
+    const schduleIds = await getSchedulesId({ trainId: req.query.trainId as string });
+
+    return res
+      .status(schduleIds.code)
+      .send(schduleIds);
   } catch (error) {
     console.error(error);
     return res
@@ -92,6 +109,22 @@ export async function deleteScheduleHandler(req: Request<{ scheduleId: string }>
 export async function getSchedulesRouteBasedHandler(req: Request, res: Response) {
   try {
     const newSchedule = await getSchedulesRouteBased(req.query as any);
+
+    return res
+      .status(newSchedule.code)
+      .send(newSchedule);
+  } catch (error) {
+    console.error(error);
+
+    return res
+      .status(serverError.code)
+      .send(serverError);
+  }
+}
+
+export async function getScheduleHandler(req: Request, res: Response) {
+  try {
+    const newSchedule = await getSchedule(req.params.scheduleId);
 
     return res
       .status(newSchedule.code)

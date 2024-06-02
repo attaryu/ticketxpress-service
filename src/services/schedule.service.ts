@@ -48,6 +48,28 @@ export async function getAllSchedules() {
   };
 }
 
+interface GetSchedulesIdQuery {
+  trainId: string,
+}
+
+export async function getSchedulesId(query: GetSchedulesIdQuery) {
+  const db = await getConnection();
+  const [train] = await db.query<Pick<ScheduleQuertResult, 'constructor' | 'id_jadwal'>[]>(`
+    SELECT id_jadwal,
+      tanggal
+    FROM jadwal
+      LEFT JOIN tiket ON tiket.jadwal = jadwal.id_jadwal
+    WHERE kereta = ?
+      AND tiket.id_tiket IS NULL
+  `, [query.trainId]);
+
+  return {
+    code: 200,
+    message: 'Sukses!',
+    payload: train,
+  };
+}
+
 interface ScheduleRequest {
   kereta: Schedule['kereta'],
   tanggal: Schedule['tanggal'],
@@ -339,16 +361,13 @@ export async function getSchedulesRouteBased(query: GetScheduleRouteBasedQueryUR
   // * Prep: siapkan array of object baru untuk menampung jadwal dan rute yang sesuai dengan permintaan user
 
   type RoutesQuery = {
-    id_jadwal: string,
-    nomor_pemberhentian: number,
     waktu_kedatangan: Date,
+    waktu_keberangkatan: Date,
     id_stasiun: string,
     stasiun: string,
   } & RowDataPacket;
 
-  const formatedSchedules: ({
-    rute: Pick<RoutesQuery, 'id_jadwal' | 'waktu_kedatangan' | 'stasiun'>[],
-  } & ScheduleQuery)[] = [];
+  const formatedSchedules: ({ rute: RoutesQuery[] } & ScheduleQuery)[] = [];
 
   // * Exec: looping setiap jadwal
 
@@ -357,6 +376,7 @@ export async function getSchedulesRouteBased(query: GetScheduleRouteBasedQueryUR
 
     const [routes] = await db.query<RoutesQuery[]>(`
       SELECT waktu_kedatangan,
+        waktu_keberangkatan,
         stasiun.id_stasiun,
         stasiun.nama AS stasiun
       FROM rute
@@ -396,5 +416,47 @@ export async function getSchedulesRouteBased(query: GetScheduleRouteBasedQueryUR
     code: 200,
     message: 'Sukses',
     payload: formatedSchedules,
+  };
+}
+
+export async function getSchedule(scheduleId: string) {
+  const db = await getConnection();
+
+  const [schedule] = await db.query<ScheduleQuertResult[]>(`
+    SELECT jadwal.id_jadwal,
+      jadwal.tanggal,
+      kereta.nama AS kereta,
+      tiket.harga
+    FROM jadwal
+      JOIN kereta ON kereta.id_kereta = jadwal.kereta
+      JOIN tiket ON tiket.jadwal = jadwal.id_jadwal
+    WHERE id_jadwal = ?;
+  `, [scheduleId]);
+
+  if (!schedule.length) {
+    return {
+      code: 404,
+      message: 'Jadwal tidak ditemukan!',
+    };
+  }
+
+  const [routes] = await db.query<RouteQueryResult[]>(`
+    SELECT waktu_kedatangan,
+      waktu_keberangkatan,
+      stasiun.nama AS stasiun,
+      stasiun.id_stasiun
+    FROM rute
+      JOIN stasiun ON stasiun.id_stasiun = rute.stasiun
+    WHERE jadwal = ?
+  `, [scheduleId]);
+
+
+  return {
+    code: 200,
+    message: 'Sukses!',
+    payload: {
+      ...schedule[0],
+      rute: routes,
+    },
   };
 }

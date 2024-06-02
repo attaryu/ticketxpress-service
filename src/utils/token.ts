@@ -21,6 +21,6 @@ export function verifyToken(token: string) {
   }
 }
 
-export function decodeToken<T extends JwtPayload>(token: string): T | null {
+export function decodeToken<T extends JwtPayload>(token: string): T {
   return decode(token) as T;
 }

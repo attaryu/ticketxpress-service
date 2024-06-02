@@ -4,18 +4,23 @@ import getConnection from '../database';
 
 export async function getTrain(trainId: string) {
   const db = await getConnection();
-  const [train] = await db.query<TrainQueryResult[]>('SELECT * FROM kereta WHERE id_kereta = ?', [trainId]);
 
-  if (!train.length) {
+  try {
+    const [train] = await db.query<TrainQueryResult[]>('SELECT * FROM kereta WHERE id_kereta = ?', [trainId]);
+
+    if (!train.length) {
+      return {
+        code: 404,
+        message: 'Kereta tidak ditemukan',
+      };
+    }
+
     return {
-      code: 404,
-      message: 'Kereta tidak ditemukan',
+      code: 200,
+      message: 'Sukses',
+      payload: train[0],
     };
+  } finally {
+    db.destroy();
   }
-
-  return {
-    code: 200,
-    message: 'Sukses',
-    payload: train[0],
-  };
 }

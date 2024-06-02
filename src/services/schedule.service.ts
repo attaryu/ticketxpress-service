@@ -54,7 +54,9 @@ interface GetSchedulesIdQuery {
 
 export async function getSchedulesId(query: GetSchedulesIdQuery) {
   const db = await getConnection();
-  const [train] = await db.query<Pick<ScheduleQuertResult, 'constructor' | 'id_jadwal'>[]>(`
+
+  try {
+    const [train] = await db.query<Pick<ScheduleQuertResult, 'constructor' | 'id_jadwal'>[]>(`
     SELECT id_jadwal,
       tanggal
     FROM jadwal
@@ -63,11 +65,14 @@ export async function getSchedulesId(query: GetSchedulesIdQuery) {
       AND tiket.id_tiket IS NULL
   `, [query.trainId]);
 
-  return {
-    code: 200,
-    message: 'Sukses!',
-    payload: train,
-  };
+    return {
+      code: 200,
+      message: 'Sukses!',
+      payload: train,
+    };
+  } finally {
+    db.destroy();
+  }
 }
 
 interface ScheduleRequest {
@@ -91,46 +96,47 @@ export async function createSchedule(scheduleRequest: ScheduleRequest) {
 
   const db = await getConnection();
 
-  // ? Check, apakah jadwal sudah ada dengan kereta dan tanggal yang sama?
-
-  const [test1] = await db.query<RowDataPacket[]>('SELECT id_jadwal FROM jadwal WHERE kereta = ? AND tanggal = ?', [scheduleRequest.kereta, scheduleRequest.tanggal]);
-
-  if (test1.length) {
-    return {
-      code: 400,
-      message: `kereta ${scheduleRequest.kereta} memiliki jadwal pada tanggal ${scheduleRequest.tanggal}, harap ganti tanggal`,
-    };
-  }
-
-  // ? Check, apakah kereta aktif?
-
-  const [test2] = await db.query<Pick<TrainQueryResult, 'constructor' | 'aktif'>[]>('SELECT aktif FROM kereta WHERE id_kereta = ?', [scheduleRequest.kereta]);
-
-  if (!test2[0].aktif) {
-    return {
-      code: 404,
-      message: `Kereta ${scheduleRequest.kereta} sedang tidak aktif`,
-    };
-  }
-
-  // ? Check, apakah stasiun saling terhubung?
-
-  const checkRoute = await checkAllRoutesRelation(scheduleRequest.rute);
-
-  if (checkRoute.code !== 200) {
-    return checkRoute;
-  }
-
-  // * Prep: object jadwal baru
-
-  const newSchedule: Omit<Schedule, 'status'> = {
-    id_jadwal: generateId(8),
-    kereta: scheduleRequest.kereta,
-    tanggal: new Date(new Date(scheduleRequest.tanggal).setMilliseconds(0)),
-    pemberhentian_terakhir: 1,
-  };
-
   try {
+    // ? Check, apakah jadwal sudah ada dengan kereta dan tanggal yang sama?
+
+    const [test1] = await db.query<RowDataPacket[]>('SELECT id_jadwal FROM jadwal WHERE kereta = ? AND tanggal = ?', [scheduleRequest.kereta, scheduleRequest.tanggal]);
+
+    if (test1.length) {
+      return {
+        code: 400,
+        message: `kereta ${scheduleRequest.kereta} memiliki jadwal pada tanggal ${scheduleRequest.tanggal}, harap ganti tanggal`,
+      };
+    }
+
+    // ? Check, apakah kereta aktif?
+
+    const [test2] = await db.query<Pick<TrainQueryResult, 'constructor' | 'aktif'>[]>('SELECT aktif FROM kereta WHERE id_kereta = ?', [scheduleRequest.kereta]);
+
+    if (!test2[0].aktif) {
+      return {
+        code: 404,
+        message: `Kereta ${scheduleRequest.kereta} sedang tidak aktif`,
+      };
+    }
+
+    // ? Check, apakah stasiun saling terhubung?
+
+    const checkRoute = await checkAllRoutesRelation(scheduleRequest.rute);
+
+    if (checkRoute.code !== 200) {
+      return checkRoute;
+    }
+
+    // * Prep: object jadwal baru
+
+    const newSchedule: Omit<Schedule, 'status'> = {
+      id_jadwal: generateId(8),
+      kereta: scheduleRequest.kereta,
+      tanggal: new Date(new Date(scheduleRequest.tanggal).setMilliseconds(0)),
+      pemberhentian_terakhir: 1,
+    };
+
+
     await db.beginTransaction();
 
     // * Exec: insert jadwal
@@ -158,6 +164,8 @@ export async function createSchedule(scheduleRequest: ScheduleRequest) {
     console.error(error);
 
     return serverError;
+  } finally {
+    db.destroy();
   }
 }
 
@@ -171,45 +179,45 @@ type UpdateScheduleRequest = {
 export async function updateSchedule(scheduleRequest: UpdateScheduleRequest) {
   const db = await getConnection();
 
-  // ? Check, apakah jadwal ada?
+  try {
+    // ? Check, apakah jadwal ada?
 
-  const [schedule] = await db.query<Pick<ScheduleQuertResult, 'constructor' | 'tanggal' | 'kereta'>[]>('SELECT id_jadwal, tanggal FROM jadwal WHERE id_jadwal = ?', [scheduleRequest.id_jadwal]);
+    const [schedule] = await db.query<Pick<ScheduleQuertResult, 'constructor' | 'tanggal' | 'kereta'>[]>('SELECT id_jadwal, tanggal FROM jadwal WHERE id_jadwal = ?', [scheduleRequest.id_jadwal]);
 
-  if (!schedule.length) {
-    return {
-      code: 404,
-      message: `Jadwal ${scheduleRequest.id_jadwal} tidak ditemukan`,
-    };
-  }
-
-  // * Prep: hilangkan presisi miliseconds pada tanggal di reqeust
-
-  const dateFromRequest = new Date(scheduleRequest.tanggal).setMilliseconds(0)
-
-  // ? Check, jika tanggal request dan tanggal dari jadwal database tidak sama, maka cek apakah hari jadwal sama dengan hari jadwal lain dari kereta yang sama?
-
-  if (schedule[0].tanggal.getTime() !== new Date(dateFromRequest).getTime()) {
-    const [test2] = await db.query<RowDataPacket[]>('SELECT id_jadwal FROM jadwal WHERE kereta = ? AND DATE(tanggal) = DATE(?)', [scheduleRequest.kereta, scheduleRequest.tanggal]);
-
-    if (test2.length) {
+    if (!schedule.length) {
       return {
-        code: 400,
-        message: `Jadwal ${scheduleRequest.id_jadwal} untuk kereta ${scheduleRequest.kereta} bertabrakan dengan jadwal lain`,
+        code: 404,
+        message: `Jadwal ${scheduleRequest.id_jadwal} tidak ditemukan`,
       };
     }
-  }
 
-  // ? Check, apakah rute yang baru saling terhubung?
+    // * Prep: hilangkan presisi miliseconds pada tanggal di reqeust
 
-  if (scheduleRequest.rute) {
-    const checkRoute = await checkAllRoutesRelation(scheduleRequest.rute);
+    const dateFromRequest = new Date(scheduleRequest.tanggal).setMilliseconds(0)
 
-    if (checkRoute.code !== 200) {
-      return checkRoute;
+    // ? Check, jika tanggal request dan tanggal dari jadwal database tidak sama, maka cek apakah hari jadwal sama dengan hari jadwal lain dari kereta yang sama?
+
+    if (schedule[0].tanggal.getTime() !== new Date(dateFromRequest).getTime()) {
+      const [test2] = await db.query<RowDataPacket[]>('SELECT id_jadwal FROM jadwal WHERE kereta = ? AND DATE(tanggal) = DATE(?)', [scheduleRequest.kereta, scheduleRequest.tanggal]);
+
+      if (test2.length) {
+        return {
+          code: 400,
+          message: `Jadwal ${scheduleRequest.id_jadwal} untuk kereta ${scheduleRequest.kereta} bertabrakan dengan jadwal lain`,
+        };
+      }
     }
-  }
 
-  try {
+    // ? Check, apakah rute yang baru saling terhubung?
+
+    if (scheduleRequest.rute) {
+      const checkRoute = await checkAllRoutesRelation(scheduleRequest.rute);
+
+      if (checkRoute.code !== 200) {
+        return checkRoute;
+      }
+    }
+
     db.beginTransaction();
 
     // * Exec: update jadwal
@@ -243,88 +251,98 @@ export async function updateSchedule(scheduleRequest: UpdateScheduleRequest) {
     console.error(error);
 
     return serverError;
+  } finally {
+    db.destroy();
   }
 }
 
 export async function changeStatusSchedule(id: string) {
   const db = await getConnection();
 
-  // ? Check, apakah jadwal ada?
+  try {
+    // ? Check, apakah jadwal ada?
 
-  const [schedules] = await db.query<Pick<ScheduleQuertResult, 'constructor' | 'status' | 'pemberhentian_terakhir'>[]>('SELECT status, pemberhentian_terakhir FROM jadwal WHERE id_jadwal = ?', [id]);
+    const [schedules] = await db.query<Pick<ScheduleQuertResult, 'constructor' | 'status' | 'pemberhentian_terakhir'>[]>('SELECT status, pemberhentian_terakhir FROM jadwal WHERE id_jadwal = ?', [id]);
 
-  if (!schedules.length) {
-    return {
-      code: 404,
-      message: `Jadwal ${id} tidak ditemukan!`,
-    };
-  }
-
-  // ? Check, apakah jadwal dengan status transit berada di rute terakhir?
-
-  if (schedules[0].status === 'transit') {
-    const [routes] = await db.query<RowDataPacket[]>('SELECT id_rute FROM rute WHERE jadwal = ? AND nomor_pemberhentian = ?', [id, schedules[0].pemberhentian_terakhir + 1]);
-
-    if (!routes.length) {
+    if (!schedules.length) {
       return {
-        code: 400,
-        message: `Jadwal ${id} sudah berada di rute terakhir`,
+        code: 404,
+        message: `Jadwal ${id} tidak ditemukan!`,
       };
     }
+
+    // ? Check, apakah jadwal dengan status transit berada di rute terakhir?
+
+    if (schedules[0].status === 'transit') {
+      const [routes] = await db.query<RowDataPacket[]>('SELECT id_rute FROM rute WHERE jadwal = ? AND nomor_pemberhentian = ?', [id, schedules[0].pemberhentian_terakhir + 1]);
+
+      if (!routes.length) {
+        return {
+          code: 400,
+          message: `Jadwal ${id} sudah berada di rute terakhir`,
+        };
+      }
+    }
+
+    if (schedules[0].status === 'transit') {
+      // * Jika transit, ubah status ke on rail
+
+      await db.query('UPDATE jadwal SET status = "on rail" WHERE id_jadwal = ?', [id]);
+    } else {
+      // * Jika ubah on rail, ubah status ke transit dan update pemberhentian terakhir + 1
+
+      await db.query('UPDATE jadwal SET status = "transit", pemberhentian_terakhir = ? WHERE id_jadwal = ?', [schedules[0].pemberhentian_terakhir + 1, id]);
+    }
+
+    return {
+      code: 200,
+      message: `Status jadwal ${id} telah berhasil diubah`,
+    };
+  } finally {
+    db.destroy();
   }
-
-  if (schedules[0].status === 'transit') {
-    // * Jika transit, ubah status ke on rail
-
-    await db.query('UPDATE jadwal SET status = "on rail" WHERE id_jadwal = ?', [id]);
-  } else {
-    // * Jika ubah on rail, ubah status ke transit dan update pemberhentian terakhir + 1
-
-    await db.query('UPDATE jadwal SET status = "transit", pemberhentian_terakhir = ? WHERE id_jadwal = ?', [schedules[0].pemberhentian_terakhir + 1, id]);
-  }
-
-  return {
-    code: 200,
-    message: `Status jadwal ${id} telah berhasil diubah`,
-  };
 }
 
 export async function deleteSchedule(id: string) {
   const db = await getConnection();
 
-  interface QueryResult extends RowDataPacket {
-    pemberhentian_terakhir: number,
-    rute_terakhir: number,
-  }
+  try {
+    interface QueryResult extends RowDataPacket {
+      pemberhentian_terakhir: number,
+      rute_terakhir: number,
+    }
 
-  // ? Check, apakah jadwal ada?
+    // ? Check, apakah jadwal ada?
 
-  const [schedule] = await db.query<QueryResult[]>('SELECT jadwal.pemberhentian_terakhir, MAX(rute.nomor_pemberhentian) AS rute_terakhir FROM rute JOIN jadwal ON rute.jadwal = jadwal.id_jadwal WHERE jadwal = ?', [id]);
+    const [schedule] = await db.query<QueryResult[]>('SELECT jadwal.pemberhentian_terakhir, MAX(rute.nomor_pemberhentian) AS rute_terakhir FROM rute JOIN jadwal ON rute.jadwal = jadwal.id_jadwal WHERE jadwal = ?', [id]);
 
-  if (!schedule.length) {
+    if (!schedule.length) {
+      return {
+        code: 404,
+        message: `Jadwal ${id} tidak ditemukan`,
+      };
+    }
+
+    // ? Check, apakah jadwal berada di pemberhentian terakhir?
+
+    if (schedule[0].pemberhentian_terakhir !== schedule[0].rute_terakhir) {
+      return {
+        code: 400,
+        message: `Jadwal ${id} belum berakhir, tidak dapat dihapus`,
+      };
+    }
+
+    // * Exec: hapus jadwal
+
+    await db.query('DELETE FROM jadwal WHERE id_jadwal = ?', [id]);
+
     return {
-      code: 404,
-      message: `Jadwal ${id} tidak ditemukan`,
+      code: 200,
+      message: `Jadwal ${id} berhasil dihapus`,
     };
+  } finally {
+    db.destroy();
   }
-
-  // ? Check, apakah jadwal berada di pemberhentian terakhir?
-
-  if (schedule[0].pemberhentian_terakhir !== schedule[0].rute_terakhir) {
-    return {
-      code: 400,
-      message: `Jadwal ${id} belum berakhir, tidak dapat dihapus`,
-    };
-  }
-
-  // * Exec: hapus jadwal
-
-  await db.query('DELETE FROM jadwal WHERE id_jadwal = ?', [id]);
-
-  return {
-    code: 200,
-    message: `Jadwal ${id} berhasil dihapus`,
-  };
 }
 
 export type GetScheduleRouteBasedQueryURL = {
@@ -338,15 +356,16 @@ export async function getSchedulesRouteBased(query: GetScheduleRouteBasedQueryUR
 
   const db = await getConnection();
 
-  // * Exec: ambil jadwal berdasarkan tanggal keberangkatan user, pastikan jadwal memiliki tiket yang tersedia
+  try {
+    // * Exec: ambil jadwal berdasarkan tanggal keberangkatan user, pastikan jadwal memiliki tiket yang tersedia
 
-  type ScheduleQuery = {
-    id_jadwal: string,
-    kereta: string,
-    harga_tiket: number,
-  } & RowDataPacket;
+    type ScheduleQuery = {
+      id_jadwal: string,
+      kereta: string,
+      harga_tiket: number,
+    } & RowDataPacket;
 
-  const [schedules] = await db.query<ScheduleQuery[]>(`
+    const [schedules] = await db.query<ScheduleQuery[]>(`
     SELECT DISTINCT jadwal.id_jadwal,
       kereta.nama AS kereta,
       tiket.harga AS harga_tiket
@@ -358,23 +377,23 @@ export async function getSchedulesRouteBased(query: GetScheduleRouteBasedQueryUR
       AND stok_tiket.dipesan = FALSE;
   `, [new Date(query.date).toISOString()]);
 
-  // * Prep: siapkan array of object baru untuk menampung jadwal dan rute yang sesuai dengan permintaan user
+    // * Prep: siapkan array of object baru untuk menampung jadwal dan rute yang sesuai dengan permintaan user
 
-  type RoutesQuery = {
-    waktu_kedatangan: Date,
-    waktu_keberangkatan: Date,
-    id_stasiun: string,
-    stasiun: string,
-  } & RowDataPacket;
+    type RoutesQuery = {
+      waktu_kedatangan: Date,
+      waktu_keberangkatan: Date,
+      id_stasiun: string,
+      stasiun: string,
+    } & RowDataPacket;
 
-  const formatedSchedules: ({ rute: RoutesQuery[] } & ScheduleQuery)[] = [];
+    const formatedSchedules: ({ rute: RoutesQuery[] } & ScheduleQuery)[] = [];
 
-  // * Exec: looping setiap jadwal
+    // * Exec: looping setiap jadwal
 
-  for (const schedule of schedules) {
-    // * Exec: ambil rute berdasarkan id jadwal dan rute yang diminta user dan urutkan berdasarkan nomor
+    for (const schedule of schedules) {
+      // * Exec: ambil rute berdasarkan id jadwal dan rute yang diminta user dan urutkan berdasarkan nomor
 
-    const [routes] = await db.query<RoutesQuery[]>(`
+      const [routes] = await db.query<RoutesQuery[]>(`
       SELECT waktu_kedatangan,
         waktu_keberangkatan,
         stasiun.id_stasiun,
@@ -386,43 +405,47 @@ export async function getSchedulesRouteBased(query: GetScheduleRouteBasedQueryUR
       ORDER BY nomor_pemberhentian;
     `, [schedule.id_jadwal, query.departure, query.destination]);
 
-    // ? Check: apakah rute lebih kecil dari 2?
+      // ? Check: apakah rute lebih kecil dari 2?
 
-    if (routes.length < 2) {
-      continue;
+      if (routes.length < 2) {
+        continue;
+      }
+
+      // ? Check: apakah stasiun rute pertama tidak sama dengan stasiun keberangkatan dari user?
+
+      if (routes[0].id_stasiun !== query.departure) {
+        continue;
+      }
+
+      // ? Check: apakah stasiun rute kedua tidak sama dengan stasiun tujuan dari user?
+
+      if (routes[1].id_stasiun !== query.destination) {
+        continue;
+      }
+
+      // * Exec: melakukan komposisi jadwal dan rute lalu push dalam array diluar looping tadi
+
+      formatedSchedules.push({
+        ...schedule,
+        rute: routes,
+      });
     }
 
-    // ? Check: apakah stasiun rute pertama tidak sama dengan stasiun keberangkatan dari user?
-
-    if (routes[0].id_stasiun !== query.departure) {
-      continue;
-    }
-
-    // ? Check: apakah stasiun rute kedua tidak sama dengan stasiun tujuan dari user?
-
-    if (routes[1].id_stasiun !== query.destination) {
-      continue;
-    }
-
-    // * Exec: melakukan komposisi jadwal dan rute lalu push dalam array diluar looping tadi
-
-    formatedSchedules.push({
-      ...schedule,
-      rute: routes,
-    });
+    return {
+      code: 200,
+      message: 'Sukses',
+      payload: formatedSchedules,
+    };
+  } finally {
+    db.destroy();
   }
-
-  return {
-    code: 200,
-    message: 'Sukses',
-    payload: formatedSchedules,
-  };
 }
 
 export async function getSchedule(scheduleId: string) {
   const db = await getConnection();
 
-  const [schedule] = await db.query<ScheduleQuertResult[]>(`
+  try {
+    const [schedule] = await db.query<ScheduleQuertResult[]>(`
     SELECT jadwal.id_jadwal,
       jadwal.tanggal,
       kereta.nama AS kereta,
@@ -433,14 +456,14 @@ export async function getSchedule(scheduleId: string) {
     WHERE id_jadwal = ?;
   `, [scheduleId]);
 
-  if (!schedule.length) {
-    return {
-      code: 404,
-      message: 'Jadwal tidak ditemukan!',
-    };
-  }
+    if (!schedule.length) {
+      return {
+        code: 404,
+        message: 'Jadwal tidak ditemukan!',
+      };
+    }
 
-  const [routes] = await db.query<RouteQueryResult[]>(`
+    const [routes] = await db.query<RouteQueryResult[]>(`
     SELECT waktu_kedatangan,
       waktu_keberangkatan,
       stasiun.nama AS stasiun,
@@ -451,12 +474,15 @@ export async function getSchedule(scheduleId: string) {
   `, [scheduleId]);
 
 
-  return {
-    code: 200,
-    message: 'Sukses!',
-    payload: {
-      ...schedule[0],
-      rute: routes,
-    },
-  };
+    return {
+      code: 200,
+      message: 'Sukses!',
+      payload: {
+        ...schedule[0],
+        rute: routes,
+      },
+    };
+  } finally {
+    db.destroy();
+  }
 }

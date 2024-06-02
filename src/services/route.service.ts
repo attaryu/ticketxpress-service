@@ -6,25 +6,30 @@ import getConnection from '../database';
 
 export async function checkAllRoutesRelation(routes: Pick<Route, 'stasiun' | 'nomor_pemberhentian'>[]) {
   const db = await getConnection();
-  for (let i = 0; i < routes.length - 1; i++) {
-    // * Prep: mengambil rute sekarang dan rute selanjutnya
 
-    const route = routes[i];
-    const nextRoute = routes[i + 1];
+  try {
+    for (let i = 0; i < routes.length - 1; i++) {
+      // * Prep: mengambil rute sekarang dan rute selanjutnya
 
-    // ? Check: apakah rute sekarang dan selanjutnya terhubung?
+      const route = routes[i];
+      const nextRoute = routes[i + 1];
 
-    const [result] = await db.query<RowDataPacket[]>('SELECT * FROM relasi_stasiun WHERE (stasiun_1 = ? AND stasiun_2 = ?) OR (stasiun_1 = ? AND stasiun_2 = ?)', [route.stasiun, nextRoute.stasiun, nextRoute.stasiun, route.stasiun]);
+      // ? Check: apakah rute sekarang dan selanjutnya terhubung?
 
-    if (!result.length) {
-      return {
-        code: 400,
-        message: `Stasiun ${route.stasiun} tidak terhubung dengan stasiun ${nextRoute.stasiun}`,
+      const [result] = await db.query<RowDataPacket[]>('SELECT * FROM relasi_stasiun WHERE (stasiun_1 = ? AND stasiun_2 = ?) OR (stasiun_1 = ? AND stasiun_2 = ?)', [route.stasiun, nextRoute.stasiun, nextRoute.stasiun, route.stasiun]);
+
+      if (!result.length) {
+        return {
+          code: 400,
+          message: `Stasiun ${route.stasiun} tidak terhubung dengan stasiun ${nextRoute.stasiun}`,
+        }
       }
     }
-  }
 
-  return { code: 200 };
+    return { code: 200 };
+  } finally {
+    db.destroy();
+  }
 }
 
 export async function createRoutes(db: Connection, schedule: Omit<Schedule, 'status' | 'pemberhentian_terakhir'>, routes: Pick<Route, 'stasiun' | 'nomor_pemberhentian'>[]) {

@@ -9,7 +9,9 @@ import { createToken } from '../utils/token';
 
 export async function getAllUsers() {
   const db = await getConnection();
-  const [users] = await db.query<UserQueryResult[]>(`
+
+  try {
+    const [users] = await db.query<UserQueryResult[]>(`
     SELECT
       id_pengguna,
       nama_lengkap,
@@ -21,53 +23,65 @@ export async function getAllUsers() {
     FROM pengguna
   `);
 
-  return {
-    code: 200,
-    message: 'Sukses',
-    payload: users,
-  };
+    return {
+      code: 200,
+      message: 'Sukses',
+      payload: users,
+    };
+  } finally {
+    db.destroy();
+  }
 }
 
 export async function changeUserStatus(userId: string) {
   const db = await getConnection();
 
-  // ? Check: apakah user ada?
+  try {
+    // ? Check: apakah user ada?
 
-  const [queryResult] = await db.query<UserQueryResult[]>('SELECT aktif FROM pengguna WHERE id_pengguna = ?', [userId]);
+    const [queryResult] = await db.query<UserQueryResult[]>('SELECT aktif FROM pengguna WHERE id_pengguna = ?', [userId]);
 
-  if (!queryResult.length) {
-    return {
-      code: 404,
-      message: `User ${userId} tidak ditemukan`,
+    if (!queryResult.length) {
+      return {
+        code: 404,
+        message: `User ${userId} tidak ditemukan`,
+      }
     }
-  }
 
-  const user: Pick<User, 'aktif'> = queryResult[0];
+    const user: Pick<User, 'aktif'> = queryResult[0];
 
-  // * Exec: ubah status user
+    // * Exec: ubah status user
 
-  await db.query<ResultSetHeader>('UPDATE pengguna SET aktif = ? WHERE id_pengguna = ?', [!user.aktif, userId]);
+    await db.query<ResultSetHeader>('UPDATE pengguna SET aktif = ? WHERE id_pengguna = ?', [!user.aktif, userId]);
 
-  return {
-    code: 200,
-    message: `sukses`,
+    return {
+      code: 200,
+      message: `sukses`,
+    }
+  } finally {
+    db.destroy();
   }
 }
 
 export async function deleteUser(userId: string) {
   const db = await getConnection();
-  const [result] = await db.query<ResultSetHeader>('DELETE FROM pengguna WHERE id_pengguna = ?', [userId]);
 
-  if (!result.affectedRows) {
-    return {
-      code: 404,
-      message: `User ${userId} tidak ditemukan`,
+  try {
+    const [result] = await db.query<ResultSetHeader>('DELETE FROM pengguna WHERE id_pengguna = ?', [userId]);
+
+    if (!result.affectedRows) {
+      return {
+        code: 404,
+        message: `User ${userId} tidak ditemukan`,
+      }
     }
-  }
 
-  return {
-    code: 200,
-    message: `sukses`,
+    return {
+      code: 200,
+      message: `sukses`,
+    }
+  } finally {
+    db.destroy();
   }
 }
 
@@ -75,58 +89,60 @@ type RegistrationRequest = Omit<User, 'id_pengguna' | 'aktif'> & { confirm_passw
 
 export async function registrationUser(registrationRequest: RegistrationRequest) {
   const db = await getConnection();
-  const queryTemplate = 'SELECT id_pengguna FROM pengguna WHERE ';
 
-  // ? Check: apakah email sudah ada?
+  try {
+    const queryTemplate = 'SELECT id_pengguna FROM pengguna WHERE ';
 
-  const [testEmail] = await db.query<RowDataPacket[]>(queryTemplate + 'email = ?', [registrationRequest.email]);
+    // ? Check: apakah email sudah ada?
 
-  if (testEmail.length) {
-    return {
-      code: 400,
-      message: "Email telah digunakan",
-    };
-  }
+    const [testEmail] = await db.query<RowDataPacket[]>(queryTemplate + 'email = ?', [registrationRequest.email]);
 
-  // ? Check: apakah nomor telepon sudah ada?
+    if (testEmail.length) {
+      return {
+        code: 400,
+        message: "Email telah digunakan",
+      };
+    }
 
-  const [testTelephone] = await db.query<RowDataPacket[]>(queryTemplate + 'telepon = ?', [registrationRequest.telepon]);
+    // ? Check: apakah nomor telepon sudah ada?
 
-  if (testTelephone.length) {
-    return {
-      code: 400,
-      message: "Nomor telepon telah digunakan",
-    };
-  }
+    const [testTelephone] = await db.query<RowDataPacket[]>(queryTemplate + 'telepon = ?', [registrationRequest.telepon]);
 
-  // ? Check: nomor identitas sudah ada?
+    if (testTelephone.length) {
+      return {
+        code: 400,
+        message: "Nomor telepon telah digunakan",
+      };
+    }
 
-  const [testIdentify] = await db.query<RowDataPacket[]>(queryTemplate + 'identitas = ?', [registrationRequest.identitas]);
+    // ? Check: nomor identitas sudah ada?
 
-  if (testIdentify.length) {
-    return {
-      code: 400,
-      message: "Nomor identitas telah digunakan",
-    };
-  }
+    const [testIdentify] = await db.query<RowDataPacket[]>(queryTemplate + 'identitas = ?', [registrationRequest.identitas]);
 
-  // ? Check: apakah password dan confirm password sama?
+    if (testIdentify.length) {
+      return {
+        code: 400,
+        message: "Nomor identitas telah digunakan",
+      };
+    }
 
-  if (registrationRequest.password !== registrationRequest.confirm_password) {
-    return {
-      code: 400,
-      message: "Password tidak sama",
-    };
-  }
+    // ? Check: apakah password dan confirm password sama?
 
-  // * Prep: hashing password
+    if (registrationRequest.password !== registrationRequest.confirm_password) {
+      return {
+        code: 400,
+        message: "Password tidak sama",
+      };
+    }
 
-  const id = generateId(8);
-  const hashedPassword = await hash(registrationRequest.password, 10);
+    // * Prep: hashing password
 
-  // * Exec: insert
+    const id = generateId(8);
+    const hashedPassword = await hash(registrationRequest.password, 10);
 
-  await db.query(`
+    // * Exec: insert
+
+    await db.query(`
     INSERT INTO pengguna (
       id_pengguna,
       nama_lengkap,
@@ -138,29 +154,33 @@ export async function registrationUser(registrationRequest: RegistrationRequest)
       identitas
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `, [
-    id,
-    registrationRequest.nama_lengkap,
-    registrationRequest.nama_panggilan,
-    registrationRequest.email,
-    hashedPassword,
-    registrationRequest.telepon,
-    registrationRequest.jenis_identitas,
-    registrationRequest.identitas,
-  ]);
+      id,
+      registrationRequest.nama_lengkap,
+      registrationRequest.nama_panggilan,
+      registrationRequest.email,
+      hashedPassword,
+      registrationRequest.telepon,
+      registrationRequest.jenis_identitas,
+      registrationRequest.identitas,
+    ]);
 
-  return {
-    code: 201,
-    message: 'Sukses',
-    payload: { id_pengguna: id },
-  };
+    return {
+      code: 201,
+      message: 'Sukses',
+      payload: { id_pengguna: id },
+    };
+  } finally {
+    db.destroy();
+  }
 }
 
 export async function loginUser(loginRequest: Pick<RegistrationRequest, 'email' | 'password'>) {
   const db = await getConnection();
 
-  // ? Check: apakah email sudah ada?
+  try {
+    // ? Check: apakah email sudah ada?
 
-  const [user] = await db.query<UserQueryResult[]>(`
+    const [user] = await db.query<UserQueryResult[]>(`
     SELECT
       id_pengguna,
       nama_lengkap,
@@ -170,43 +190,48 @@ export async function loginUser(loginRequest: Pick<RegistrationRequest, 'email' 
     FROM pengguna WHERE email = ?
   `, [loginRequest.email]);
 
-  if (!user.length) {
+    if (!user.length) {
+      return {
+        code: 400,
+        message: "Email tidak ditemukan",
+      };
+    }
+
+    // ? Check: apakah password benar?
+
+    const isValidPassword = await compare(loginRequest.password, user[0].password);
+
+    if (!isValidPassword) {
+      return {
+        code: 400,
+        message: 'Password salah',
+      };
+    }
+
+    // * Prep: buat token request
+
+    const token = createToken({
+      id: user[0].id_pengguna,
+      nama: user[0].nama_panggilan,
+      email: user[0].email,
+      role: 'user',
+    });
+
     return {
-      code: 400,
-      message: "Email tidak ditemukan",
+      code: 201,
+      message: 'Sukses',
+      payload: { token },
     };
+  } finally {
+    db.destroy();
   }
-
-  // ? Check: apakah password benar?
-
-  const isValidPassword = await compare(loginRequest.password, user[0].password);
-
-  if (!isValidPassword) {
-    return {
-      code: 400,
-      message: 'Password salah',
-    };
-  }
-
-  // * Prep: buat token request
-
-  const token = createToken({
-    id: user[0].id_pengguna,
-    nama: user[0].nama_panggilan,
-    email: user[0].email,
-    role: 'user',
-  });
-
-  return {
-    code: 201,
-    message: 'Sukses',
-    payload: { token },
-  };
 }
 
 export async function getLoggedUser(id: string) {
   const db = await getConnection();
-  const [user] = await db.query<UserQueryResult[]>(`
+
+  try {
+    const [user] = await db.query<UserQueryResult[]>(`
     SELECT id_pengguna,
       nama_lengkap,
       jenis_identitas,
@@ -214,9 +239,12 @@ export async function getLoggedUser(id: string) {
     FROM pengguna WHERE id_pengguna = ?
   `, [id]);
 
-  return {
-    code: 200,
-    message: 'Sukses!',
-    payload: user[0],
+    return {
+      code: 200,
+      message: 'Sukses!',
+      payload: user[0],
+    }
+  } finally {
+    db.destroy();
   }
 }
